@@ -19,5 +19,5 @@ def read(articleid):
         abort(500)  # 出现了异常则返回500页面
 
     # 增加1次阅读次数
-    # Article.update_read_count(articleid)
+    Article().update_read_count(articleid)
     return render_template('article-user.html', result=result)

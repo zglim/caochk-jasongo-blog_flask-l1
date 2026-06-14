@@ -7,6 +7,7 @@ controller.index控制器代码
 from math import ceil
 
 from flask import Blueprint, render_template, request, abort
+import json
 from model.article import Article
 
 index = Blueprint("index", __name__)
@@ -49,7 +50,7 @@ def home():  # 不可同蓝本模块名一样
 
     # 根据文章总数与每页文章数目计算总页数（为了在访问根页面时不会由于缺失page、total_page_num参数而导致报错，所以在根页面对应视图函数中也需加上）
     page_size = 10
-    total_page_num = ceil(article.get_total_count() / page_size)
+    total_page_num = max(1, ceil(article.get_total_count() / page_size))
 
     # 首页，所以page=1，total还是根据查询到的页面总数即可
     return render_template('index.html', result=result, page=1, total_page_num=total_page_num)
@@ -64,16 +65,17 @@ def paginate(page):
     result = article.find_limit_with_users(start, page_size)  # 从数据库中取出相应位置的数据
 
     # 根据文章总数与每页文章数目计算总页数
-    total_page_num = ceil(article.get_total_count() / page_size)
+    total_page_num = max(1, ceil(article.get_total_count() / page_size))
 
     return render_template('index.html', result=result, page=page, total_page_num=total_page_num)
 
 
-@index.route('/type/<string>')
-def classify(string):
-    # 前端传过来的参数的格式是类似’2-1‘这种，所以需要处理
-    type = int(string.split('-')[0])
-    page = int(string.split('-')[1])
+@index.route('/type/<string:type>')
+def classify(type):
+    # 前端传过来的参数的格式是类似'2-1'这种，所以需要处理
+    parts = type.split('-')
+    type = int(parts[0])
+    page = int(parts[1])
 
     page_size = 10
     start = (page - 1) * page_size  # 根据页码换算出 在数据库中所取数据的开始位置
@@ -81,7 +83,7 @@ def classify(string):
     result = article.find_by_type(type, start, page_size)  # 从数据库中取出相应类别、相应位置的数据
 
     # 根据文章总数与每页文章数目计算总页数
-    total_page_num = ceil(article.get_total_count_by_type(type) / page_size)
+    total_page_num = max(1, ceil(article.get_total_count_by_type(type) / page_size))
 
     return render_template('type.html', result=result, page=page, total_page_num=total_page_num, type=type)
 
@@ -91,7 +93,7 @@ def classify(string):
 def search(page, keyword):
     # 后端校验过滤非法用户搜索内容
     keyword = keyword.strip()
-    if not keyword or '%' in keyword or len(keyword) > 10:
+    if not keyword or len(keyword) > 50:
         abort(404)
 
 
@@ -101,7 +103,7 @@ def search(page, keyword):
     result = article.find_by_headline(keyword, start, page_size)  # 从数据库中取出标题中带相应关键字的、相应位置的文章（用于展示一页）
 
     # 根据按关键字搜得的文章总数与每页文章数目计算总页数（用于分页）
-    total_page_num = ceil(article.get_total_count_by_headline(keyword) / page_size)
+    total_page_num = max(1, ceil(article.get_total_count_by_headline(keyword) / page_size))
 
     return render_template('search.html', result=result, page=page, total_page_num=total_page_num, keyword=keyword)
 
@@ -114,14 +116,14 @@ def home_redis():
     # 利用zrevrange从有序集合中倒序取0-9共10条数据，即最新文章
     result = red.zrevrange('article', 0, 9)
 
-    # 由于加载进来的每一条数据是一个字符串，需要使用eval函数将其转换为字典
+    # 由于加载进来的每一条数据是一个字符串，需要将其转换为字典
     article_list = []
     for article in result:
-        article_list.append(eval(article))
+        article_list.append(json.loads(article))
 
     page_size = 10
     total_count = red.zcard('article')  # 获取有序集合article的总数量
-    total_page_num = ceil(total_count / page_size)  # 计算得到页面总数
+    total_page_num = max(1, ceil(total_count / page_size))  # 计算得到页面总数
 
     return render_template('index-redis.html', article_list=article_list, page=1, total_page_num=total_page_num)
 
@@ -135,12 +137,12 @@ def paginate_redis(page):
     red = redis_connect()
     result = red.zrevrange('article', start, start + page_size - 1)
 
-    # 由于加载进来的每一条数据是一个字符串，需要使用eval函数将其转换为字典
+    # 由于加载进来的每一条数据是一个字符串，需要将其转换为字典
     article_list = []
     for article in result:
-        article_list.append(eval(article))
+        article_list.append(json.loads(article))
 
     total_count = red.zcard('article')  # 获取有序集合article的总数量
-    total_page_num = ceil(total_count / page_size)  # 计算得到页面总数
+    total_page_num = max(1, ceil(total_count / page_size))  # 计算得到页面总数
 
     return render_template('index-redis.html', article_list=article_list, page=page, total_page_num=total_page_num)
