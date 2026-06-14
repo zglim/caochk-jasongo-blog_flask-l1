@@ -50,15 +50,19 @@ class Article(DBase):
 
     # 用户通过搜索框进行搜索，拿着用户输入关键词检索数据库article表中的标题字段（暂未实现全文搜索）
     def find_by_headline(self, headline, start, count):
+        # 转义LIKE查询中的特殊字符，防止用户输入的%、_、\被当作通配符
+        escaped = headline.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
         result = dbsession.query(Article, Users.nickname).join(Users, Users.userid == Article.userid).filter(
-            Article.hide == 0, Article.drafted == 0, Article.checked == 1, Article.headline.like('%'+headline+'%')).order_by \
+            Article.hide == 0, Article.drafted == 0, Article.checked == 1, Article.headline.like('%'+escaped+'%', escape='\\')).order_by \
             (Article.articleid.desc()).limit(count).offset(start).all()
         return result
 
     # 按搜索关键字获取文章（未隐藏、非草稿、已审核）总数量
     def get_total_count_by_headline(self, headline):
+        # 转义LIKE查询中的特殊字符，防止用户输入的%、_、\被当作通配符
+        escaped = headline.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
         result = dbsession.query(Article).filter(Article.hide == 0, Article.drafted == 0, Article.checked == 1,
-                                                 Article.headline.like('%'+headline+'%')).count()
+                                                 Article.headline.like('%'+escaped+'%', escape='\\')).count()
         return result
 
     # 每阅读一次文章，阅读次数+1
